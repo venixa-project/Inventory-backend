@@ -1,0 +1,21 @@
+import { Router } from 'express';
+import { authenticateToken, requireRoles } from '../middlewares/auth.middleware.js';
+import { resolveTenant } from '../middlewares/tenant.middleware.js';
+import { CustomerController } from '../controllers/customer.controller.js';
+
+const router = Router();
+
+router.use(authenticateToken);
+router.use(resolveTenant);
+
+router.get('/', CustomerController.getAll);
+router.get('/:id', CustomerController.getById);
+router.get('/:id/ledger', CustomerController.getLedger);
+router.get('/:id/statement', CustomerController.getLedger);
+router.post('/', CustomerController.create);
+router.put('/:id', CustomerController.update);
+router.post('/:id/payments', CustomerController.recordPayment);
+router.post('/:id/payment', CustomerController.recordPayment);
+router.delete('/:id', requireRoles('owner', 'product_admin'), CustomerController.delete);
+
+export default router;
