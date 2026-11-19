@@ -1,6 +1,7 @@
 import { testPostgresConnection, getPostgresPool } from './postgres.js';
 import { ENV } from '../config/env.js';
 import { MigrationEngine } from './migrationEngine.js';
+import { db } from './db.js';
 import {
   SEED_USERS,
   SEED_SHOP_SETTINGS,
@@ -128,6 +129,7 @@ export const autoInitializeDatabase = async (): Promise<boolean> => {
     console.log('🚀 [AutoMigration] Synchronizing schemas, new tables & versioned migrations...');
     await runMigrations();
     await seedDatabaseIfEmpty();
+    await db.loadFromPostgres();
     console.log('✨ [AutoMigration] PostgreSQL database fully synchronized and ready for production!');
     return true;
   } catch (err: any) {

@@ -59,6 +59,20 @@ export const SEED_USERS: User[] = [
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
   },
+  {
+    id: 'staff-884157',
+    name: 'Govardhan',
+    email: 'govardhank726@gmail.com',
+    passwordHash: STAFF_HASH,
+    role: 'staff',
+    tenantId: 'TENANT-POOJA-02',
+    phone: '8919669714',
+    designation: 'POS Counter Cashier',
+    isActive: true,
+    status: 'active',
+    createdAt: '2026-11-11T11:01:24.157Z',
+    updatedAt: '2026-11-11T11:01:24.157Z',
+  },
 ];
 
 // ============================================================================
@@ -95,7 +109,7 @@ export const SEED_CLIENTS: ClientTenant[] = [
   },
   {
     id: 'TENANT-POOJA-02',
-    businessName: 'Vedic Pooja & Spiritual Store',
+    businessName: 'Ram Store',
     ownerName: 'Pooja Store Owner',
     email: 'pooja.owner@store.com',
     phone: '+91 98765 22222',

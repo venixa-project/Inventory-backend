@@ -159,7 +159,15 @@ export async function migrateAndSeedToPostgres(targetDatabaseUrl?: string): Prom
             start_date, renewal_date, branches_count, user_count, sku_count,
             username, temporary_password, tenant_code, login_url, credential_status, notes
           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
-          ON CONFLICT (id) DO UPDATE SET business_name = EXCLUDED.business_name, status = EXCLUDED.status`,
+          ON CONFLICT (id) DO UPDATE SET
+            business_name = EXCLUDED.business_name,
+            owner_name = EXCLUDED.owner_name,
+            email = EXCLUDED.email,
+            phone = EXCLUDED.phone,
+            city = EXCLUDED.city,
+            state = EXCLUDED.state,
+            address = EXCLUDED.address,
+            status = EXCLUDED.status`,
           [
             c.id, c.businessName, c.ownerName, c.email, c.phone, c.city, c.state, c.address || null, c.gstin || null,
             c.businessType || 'pooja', c.licenseTier || 'professional', c.billingFrequency || 'monthly',
@@ -179,7 +187,12 @@ export async function migrateAndSeedToPostgres(targetDatabaseUrl?: string): Prom
           `INSERT INTO users (
             id, name, email, password_hash, role, tenant_id, phone, designation, is_active
           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-          ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash, role = EXCLUDED.role`,
+          ON CONFLICT (id) DO UPDATE SET
+            name = EXCLUDED.name,
+            password_hash = EXCLUDED.password_hash,
+            role = EXCLUDED.role,
+            tenant_id = EXCLUDED.tenant_id,
+            is_active = EXCLUDED.is_active`,
           [
             u.id, u.name, u.email, u.passwordHash, u.role, u.tenantId || null,
             u.phone || null, u.designation || null, u.isActive ?? true,
@@ -210,7 +223,13 @@ export async function migrateAndSeedToPostgres(targetDatabaseUrl?: string): Prom
     // 4. Shop Settings
     if (dbData.shopSettings) {
       let settingCount = 0;
+      const validTenantsRes = await client.query('SELECT id FROM client_tenants');
+      const validTenantIds = new Set(validTenantsRes.rows.map((r: any) => r.id));
+
       for (const [tenantId, ss] of Object.entries(dbData.shopSettings as Record<string, any>)) {
+        if (!validTenantIds.has(tenantId)) {
+          continue;
+        }
         const matchingClient = dbData.clients?.find((c: any) => c.id === tenantId);
         const city = ss.city || matchingClient?.city || 'Hyderabad';
         const state = ss.state || matchingClient?.state || 'Telangana';
@@ -224,7 +243,13 @@ export async function migrateAndSeedToPostgres(targetDatabaseUrl?: string): Prom
             tenant_id, shop_name, tagline, address, city, state, pincode, phone, email, gstin, upi_id,
             default_payment_mode, low_stock_threshold, auto_round_off
           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-          ON CONFLICT (tenant_id) DO UPDATE SET shop_name = EXCLUDED.shop_name, upi_id = EXCLUDED.upi_id`,
+          ON CONFLICT (tenant_id) DO UPDATE SET
+            shop_name = EXCLUDED.shop_name,
+            tagline = EXCLUDED.tagline,
+            address = EXCLUDED.address,
+            phone = EXCLUDED.phone,
+            email = EXCLUDED.email,
+            upi_id = EXCLUDED.upi_id`,
           [
             tenantId, ss.shopName || 'Store', ss.tagline || '', address, city, state, pincode,
             phone, email, ss.gstin || null, ss.upiId || 'store@upi',
@@ -345,7 +370,26 @@ export async function migrateAndSeedToPostgres(targetDatabaseUrl?: string): Prom
     // 9. Bills / Invoices (POS) & Lines
     if (dbData.bills && dbData.bills.length > 0) {
       let billLinesCount = 0;
+      const validCustomersRes = await client.query('SELECT id FROM customers');
+      const validCustomerIds = new Set(validCustomersRes.rows.map((r: any) => r.id));
+
       for (const b of dbData.bills) {
+        let validCustomerId = b.customerId && validCustomerIds.has(b.customerId) ? b.customerId : null;
+        if (b.customerId && !validCustomerIds.has(b.customerId) && b.customerName) {
+          try {
+            await client.query(
+              `INSERT INTO customers (id, tenant_id, name, phone, email, due_amount, credit_limit)
+               VALUES ($1, $2, $3, $4, $5, 0, 10000)
+               ON CONFLICT (id) DO NOTHING`,
+              [b.customerId, b.tenantId || 'CLI-1001', b.customerName, b.customerPhone || '', null]
+            );
+            validCustomerIds.add(b.customerId);
+            validCustomerId = b.customerId;
+          } catch {
+            validCustomerId = null;
+          }
+        }
+
         await client.query(
           `INSERT INTO bills (
             id, tenant_id, bill_number, customer_id, customer_name, customer_phone,
@@ -353,7 +397,7 @@ export async function migrateAndSeedToPostgres(targetDatabaseUrl?: string): Prom
           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
           ON CONFLICT (id) DO NOTHING`,
           [
-            b.id, b.tenantId || 'CLI-1001', b.billNumber, b.customerId || null,
+            b.id, b.tenantId || 'CLI-1001', b.billNumber, validCustomerId,
             b.customerName || 'Walk-in', b.customerPhone || null, b.subtotal || 0,
             b.gst || 0, b.discount || 0, b.total || 0, b.roundOff || 0,
             b.paid || 0, b.due || 0, b.paymentMode || 'Cash', sanitizeTimestamp(b.date || b.createdAt), b.notes || null,
@@ -385,7 +429,25 @@ export async function migrateAndSeedToPostgres(targetDatabaseUrl?: string): Prom
     // 10. Sales Orders & Lines
     if (dbData.salesOrders && dbData.salesOrders.length > 0) {
       let soLinesCount = 0;
+      const validCustomersRes = await client.query('SELECT id FROM customers');
+      const validCustomerIds = new Set(validCustomersRes.rows.map((r: any) => r.id));
+
       for (const so of dbData.salesOrders) {
+        let validCustomerId = so.customerId && validCustomerIds.has(so.customerId) ? so.customerId : null;
+        if (so.customerId && !validCustomerIds.has(so.customerId) && so.customerName) {
+          try {
+            await client.query(
+              `INSERT INTO customers (id, tenant_id, name, phone, email, due_amount, credit_limit)
+               VALUES ($1, $2, $3, $4, $5, 0, 10000)
+               ON CONFLICT (id) DO NOTHING`,
+              [so.customerId, so.tenantId || 'CLI-1001', so.customerName, so.customerPhone || '', null]
+            );
+            validCustomerIds.add(so.customerId);
+            validCustomerId = so.customerId;
+          } catch {
+            validCustomerId = null;
+          }
+        }
         const soStatus = so.status === 'Invoiced' ? 'Confirmed' : (['Draft', 'Confirmed', 'Packed', 'Shipped', 'Delivered', 'Cancelled'].includes(so.status) ? so.status : 'Confirmed');
 
         await client.query(
@@ -395,7 +457,7 @@ export async function migrateAndSeedToPostgres(targetDatabaseUrl?: string): Prom
           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
           ON CONFLICT (id) DO NOTHING`,
           [
-            so.id, so.tenantId || 'CLI-1001', so.soNumber, so.customerId,
+            so.id, so.tenantId || 'CLI-1001', so.soNumber, validCustomerId,
             so.customerName, so.customerPhone || null, sanitizeDate(so.date),
             so.subtotal || 0, so.total || 0, soStatus,
             so.paidAmount || 0, so.dueAmount || 0, so.paymentStatus || 'Pending',
@@ -422,7 +484,11 @@ export async function migrateAndSeedToPostgres(targetDatabaseUrl?: string): Prom
 
     // 11. Delivery Challans
     if (dbData.deliveryChallans && dbData.deliveryChallans.length > 0) {
+      const validCustomersRes = await client.query('SELECT id FROM customers');
+      const validCustomerIds = new Set(validCustomersRes.rows.map((r: any) => r.id));
+
       for (const dc of dbData.deliveryChallans) {
+        let validCustomerId = dc.customerId && validCustomerIds.has(dc.customerId) ? dc.customerId : null;
         await client.query(
           `INSERT INTO delivery_challans (
             id, tenant_id, challan_number, customer_id, customer_name, customer_phone,
@@ -431,7 +497,7 @@ export async function migrateAndSeedToPostgres(targetDatabaseUrl?: string): Prom
           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
           ON CONFLICT (id) DO NOTHING`,
           [
-            dc.id, dc.tenantId || 'CLI-1001', dc.challanNumber, dc.customerId || null,
+            dc.id, dc.tenantId || 'CLI-1001', dc.challanNumber, validCustomerId,
             dc.customerName, dc.customerPhone || null, dc.deliveryAddress || null,
             sanitizeDate(dc.date), dc.referenceNumber || null, dc.challanType || 'Customer Delivery / Dispatch',
             dc.transporterName || null, dc.vehicleNumber || null, dc.total || 0,

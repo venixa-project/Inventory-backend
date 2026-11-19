@@ -10,7 +10,8 @@
     "dev": "tsx watch src/server.ts",
     "db:migrate": "tsx src/models/migrate.ts",
     "db:migrate:status": "tsx src/models/migrate.ts --status",
-    "db:create-migration": "tsx src/models/createMigration.ts"
+    "db:create-migration": "tsx src/models/createMigration.ts",
+    "db:migrate:railway": "tsx src/models/migrateToRailway.ts"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
