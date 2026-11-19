@@ -9,7 +9,6 @@ node_modules/
 .pnp.js
 
 # Build Outputs & Transpiled Code
-dist/
 build/
 out/
 *.tsbuildinfo
