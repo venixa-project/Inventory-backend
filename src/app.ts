@@ -9,14 +9,21 @@ export const createApp = (): Express => {
   const app = express();
 
   // Standard production security & utility middlewares
-  app.use(helmet());
   app.use(
-    cors({
-      origin: '*', // Allow development frontend clients
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'x-user-role', 'x-tenant-id'],
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      crossOriginEmbedderPolicy: false,
     })
   );
+  app.use(
+    cors({
+      origin: true,
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'x-user-role', 'x-tenant-id', 'Accept', 'Origin', 'X-Requested-With'],
+    })
+  );
+  app.options('*', cors());
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
   app.use(morgan('dev'));

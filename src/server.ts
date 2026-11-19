@@ -5,15 +5,19 @@ import { autoInitializeDatabase } from './models/migrate.js';
 // Reload trigger for persistent seed data: 2026-10-26
 const app = createApp();
 
-const server = app.listen(ENV.PORT, async () => {
+const server = app.listen(ENV.PORT, '0.0.0.0', async () => {
   console.log(`=======================================================`);
   console.log(`🚀 Venixa Inventory Backend running on port ${ENV.PORT}`);
-  console.log(`🌐 Base URL: http://localhost:${ENV.PORT}/api/v1`);
+  console.log(`🌐 Base URL: http://0.0.0.0:${ENV.PORT}/api/v1`);
   console.log(`🔒 Roles: Product Admin | Store Owner | Counter Staff`);
   console.log(`⚡ Environment: ${ENV.NODE_ENV}`);
   
   // Automatically bootstrap database, run migrations, and seed initial records
-  await autoInitializeDatabase();
+  try {
+    await autoInitializeDatabase();
+  } catch (err: any) {
+    console.error('⚠️ [Startup] Database autoInitializeDatabase warning:', err.message);
+  }
   
   console.log(`=======================================================`);
 });
