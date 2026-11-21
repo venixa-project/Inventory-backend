@@ -114,6 +114,41 @@ CREATE INDEX IF NOT EXISTS idx_users_tenant_id ON users(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 
 -- -----------------------------------------------------------------------------
+-- 3b. ROLES & PERMISSIONS MATRIX (Granular RBAC)
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS roles (
+    id VARCHAR(100) PRIMARY KEY,
+    tenant_id VARCHAR(50) NOT NULL DEFAULT 'CLI-1001',
+    name VARCHAR(150) NOT NULL,
+    description TEXT,
+    permissions JSONB DEFAULT '{}'::jsonb,
+    user_count INT DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_roles_tenant_id ON roles(tenant_id);
+
+-- -----------------------------------------------------------------------------
+-- 3c. BRANCHES & OUTLETS (Multi-Branch Management)
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS branches (
+    id VARCHAR(100) PRIMARY KEY,
+    tenant_id VARCHAR(50) NOT NULL DEFAULT 'CLI-1001',
+    name VARCHAR(150) NOT NULL,
+    code VARCHAR(50),
+    group_name VARCHAR(100),
+    city VARCHAR(100),
+    state VARCHAR(100),
+    address TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_branches_tenant_id ON branches(tenant_id);
+
+-- -----------------------------------------------------------------------------
 -- 4. SOFTWARE LICENSE SALES (SaaS Billing & Invoices)
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS software_license_sales (

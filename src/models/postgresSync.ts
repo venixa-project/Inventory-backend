@@ -253,5 +253,100 @@ export class PostgresSync {
       console.warn('[PostgresSync] Warning: Failed to sync shopSettings to PostgreSQL:', err.message);
     }
   }
+
+  /**
+   * Syncs a role upsert to Railway PostgreSQL
+   */
+  public static async syncRole(role: any, tenantId: string = 'CLI-1001'): Promise<void> {
+    if (!isPostgresActive() || !role) return;
+    try {
+      const pool = getPostgresPool();
+      await pool.query(
+        `INSERT INTO roles (
+          id, tenant_id, name, description, permissions, user_count, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+        ON CONFLICT (id) DO UPDATE SET
+          name = EXCLUDED.name,
+          description = EXCLUDED.description,
+          permissions = EXCLUDED.permissions,
+          user_count = EXCLUDED.user_count,
+          updated_at = NOW()`,
+        [
+          role.id,
+          role.tenantId || tenantId,
+          role.name,
+          role.description || '',
+          JSON.stringify(role.permissions || {}),
+          role.userCount || 0,
+          role.createdAt || new Date().toISOString(),
+        ]
+      );
+    } catch (err: any) {
+      console.warn('[PostgresSync] Warning: Failed to sync role to PostgreSQL:', err.message);
+    }
+  }
+
+  /**
+   * Deletes a role from Railway PostgreSQL
+   */
+  public static async deleteRole(id: string, tenantId: string = 'CLI-1001'): Promise<void> {
+    if (!isPostgresActive()) return;
+    try {
+      const pool = getPostgresPool();
+      await pool.query(`DELETE FROM roles WHERE id = $1 AND tenant_id = $2`, [id, tenantId]);
+    } catch (err: any) {
+      console.warn('[PostgresSync] Warning: Failed to delete role from PostgreSQL:', err.message);
+    }
+  }
+
+  /**
+   * Syncs a branch upsert to Railway PostgreSQL
+   */
+  public static async syncBranch(branch: any, tenantId: string = 'CLI-1001'): Promise<void> {
+    if (!isPostgresActive() || !branch) return;
+    try {
+      const pool = getPostgresPool();
+      await pool.query(
+        `INSERT INTO branches (
+          id, tenant_id, name, code, group_name, city, state, address, is_active, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
+        ON CONFLICT (id) DO UPDATE SET
+          name = EXCLUDED.name,
+          code = EXCLUDED.code,
+          group_name = EXCLUDED.group_name,
+          city = EXCLUDED.city,
+          state = EXCLUDED.state,
+          address = EXCLUDED.address,
+          is_active = EXCLUDED.is_active,
+          updated_at = NOW()`,
+        [
+          branch.id,
+          branch.tenantId || tenantId,
+          branch.name,
+          branch.code || null,
+          branch.group || branch.group_name || 'General',
+          branch.city || 'Hyderabad',
+          branch.state || 'Telangana',
+          branch.address || null,
+          branch.isActive ?? true,
+        ]
+      );
+    } catch (err: any) {
+      console.warn('[PostgresSync] Warning: Failed to sync branch to PostgreSQL:', err.message);
+    }
+  }
+
+  /**
+   * Deletes a branch from Railway PostgreSQL
+   */
+  public static async deleteBranch(id: string, tenantId: string = 'CLI-1001'): Promise<void> {
+    if (!isPostgresActive()) return;
+    try {
+      const pool = getPostgresPool();
+      await pool.query(`DELETE FROM branches WHERE id = $1 AND tenant_id = $2`, [id, tenantId]);
+    } catch (err: any) {
+      console.warn('[PostgresSync] Warning: Failed to delete branch from PostgreSQL:', err.message);
+    }
+  }
 }
 

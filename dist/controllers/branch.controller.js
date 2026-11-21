@@ -1,9 +1,53 @@
 import { db } from '../models/db.js';
+import { isPostgresActive, getPostgresPool } from '../models/postgres.js';
+import { PostgresSync } from '../models/postgresSync.js';
+import { SEED_BRANCHES } from '../models/initialSeed.js';
+const getTenantId = (req) => {
+    return (req.headers['x-tenant-id'] ||
+        req.user?.tenantId ||
+        'CLI-1001');
+};
 export const getBranches = async (req, res) => {
     try {
-        const branches = db.get('branches') || [];
+        const tenantId = getTenantId(req);
         const search = (req.query.search || '').toLowerCase().trim();
-        let result = [...branches];
+        let result = [];
+        if (isPostgresActive()) {
+            const pool = getPostgresPool();
+            const bRes = await pool.query('SELECT * FROM branches WHERE tenant_id = $1 ORDER BY created_at ASC', [tenantId]);
+            if (bRes.rows.length === 0) {
+                console.log(`[BranchController] Seeding initial branches into PostgreSQL for tenant ${tenantId}...`);
+                for (const sb of SEED_BRANCHES) {
+                    await PostgresSync.syncBranch(sb, tenantId);
+                }
+                const recheckRes = await pool.query('SELECT * FROM branches WHERE tenant_id = $1 ORDER BY created_at ASC', [tenantId]);
+                result = recheckRes.rows.map((r) => ({
+                    id: r.id,
+                    name: r.name,
+                    code: r.code || '',
+                    group: r.group_name || 'General',
+                    city: r.city || 'Hyderabad',
+                    state: r.state || 'Telangana',
+                    address: r.address || '',
+                    isActive: r.is_active ?? true,
+                }));
+            }
+            else {
+                result = bRes.rows.map((r) => ({
+                    id: r.id,
+                    name: r.name,
+                    code: r.code || '',
+                    group: r.group_name || 'General',
+                    city: r.city || 'Hyderabad',
+                    state: r.state || 'Telangana',
+                    address: r.address || '',
+                    isActive: r.is_active ?? true,
+                }));
+            }
+        }
+        else {
+            result = db.get('branches') || [];
+        }
         if (search) {
             result = result.filter((b) => b.name.toLowerCase().includes(search) ||
                 b.code.toLowerCase().includes(search) ||
@@ -23,11 +67,11 @@ export const getBranches = async (req, res) => {
 };
 export const createBranch = async (req, res) => {
     try {
+        const tenantId = getTenantId(req);
         const { name, code, group, city, state, address } = req.body;
         if (!name || !name.trim()) {
             return res.status(400).json({ success: false, message: 'Branch name is required' });
         }
-        const branches = db.get('branches') || [];
         const newBranch = {
             id: `branch-${Date.now()}`,
             name: name.trim(),
@@ -38,6 +82,10 @@ export const createBranch = async (req, res) => {
             address: address?.trim() || '',
             isActive: true,
         };
+        if (isPostgresActive()) {
+            await PostgresSync.syncBranch(newBranch, tenantId);
+        }
+        const branches = db.get('branches') || [];
         branches.push(newBranch);
         db.set('branches', branches);
         res.status(201).json({

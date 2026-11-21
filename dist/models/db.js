@@ -142,6 +142,10 @@ class DatabaseService {
                     PostgresSync.syncDeliveryChallan(latest);
                 else if (key === 'stockLogs')
                     PostgresSync.syncStockLog(latest);
+                else if (key === 'roles')
+                    PostgresSync.syncRole(latest);
+                else if (key === 'branches')
+                    PostgresSync.syncBranch(latest);
             }
             else if (key === 'shopSettings' && typeof value === 'object' && value !== null) {
                 const tenantIds = Object.keys(value);
@@ -430,9 +434,52 @@ class DatabaseService {
                     date: r.date ? new Date(r.date).toISOString() : new Date().toISOString(),
                 }));
             }
+            // 11. Roles (Tenant-based RBAC)
+            const rolesRes = await pool.query('SELECT * FROM roles ORDER BY created_at ASC');
+            if (rolesRes.rows.length > 0) {
+                this.data.roles = rolesRes.rows.map((r) => ({
+                    id: r.id,
+                    tenantId: r.tenant_id,
+                    name: r.name,
+                    description: r.description || '',
+                    permissions: typeof r.permissions === 'string' ? JSON.parse(r.permissions) : (r.permissions || {}),
+                    userCount: r.user_count || 0,
+                    createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+                    updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString(),
+                }));
+            }
+            else {
+                console.log('🌱 [DatabaseService] Seeding initial roles into PostgreSQL roles table...');
+                for (const sr of SEED_ROLES) {
+                    await PostgresSync.syncRole(sr, 'CLI-1001');
+                }
+                this.data.roles = [...SEED_ROLES];
+            }
+            // 12. Branches (Tenant-based Multi-Branch)
+            const branchesRes = await pool.query('SELECT * FROM branches ORDER BY created_at ASC');
+            if (branchesRes.rows.length > 0) {
+                this.data.branches = branchesRes.rows.map((r) => ({
+                    id: r.id,
+                    tenantId: r.tenant_id,
+                    name: r.name,
+                    code: r.code || '',
+                    group: r.group_name || 'General',
+                    city: r.city || 'Hyderabad',
+                    state: r.state || 'Telangana',
+                    address: r.address || '',
+                    isActive: r.is_active ?? true,
+                }));
+            }
+            else {
+                console.log('🌱 [DatabaseService] Seeding initial branches into PostgreSQL branches table...');
+                for (const sb of SEED_BRANCHES) {
+                    await PostgresSync.syncBranch(sb, 'CLI-1001');
+                }
+                this.data.branches = [...SEED_BRANCHES];
+            }
             // Save latest snapshot to disk for offline resilience
             this.saveToDisk();
-            console.log(`✅ [DatabaseService] Successfully loaded live PostgreSQL data! (${this.data.items.length} items, ${this.data.clients.length} tenants, ${this.data.users.length} users)`);
+            console.log(`✅ [DatabaseService] Successfully loaded live PostgreSQL data! (${this.data.items.length} items, ${this.data.clients.length} tenants, ${this.data.users.length} users, ${this.data.roles.length} roles)`);
             return true;
         }
         catch (err) {
