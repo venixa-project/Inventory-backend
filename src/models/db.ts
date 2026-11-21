@@ -5,6 +5,8 @@ import { isPostgresActive, getPostgresPool } from './postgres.js';
 import { PostgresSync } from './postgresSync.js';
 import {
   User,
+  RoleRecord,
+  BranchRecord,
   ClientTenant,
   SoftwareLicenseSale,
   PlatformIntegrationSettings,
@@ -28,6 +30,8 @@ import {
 } from '../types/index.js';
 import {
   SEED_USERS,
+  SEED_ROLES,
+  SEED_BRANCHES,
   SEED_CLIENTS,
   SEED_LICENSE_SALES,
   SEED_PLATFORM_INTEGRATIONS,
@@ -52,6 +56,8 @@ import {
 
 export interface DatabaseSchema {
   users: User[];
+  roles: RoleRecord[];
+  branches: BranchRecord[];
   clients: ClientTenant[];
   licenseSales: SoftwareLicenseSale[];
   platformIntegrations: PlatformIntegrationSettings;
@@ -99,6 +105,8 @@ class DatabaseService {
   private getDefaultData(): DatabaseSchema {
     return {
       users: [...SEED_USERS],
+      roles: [...SEED_ROLES],
+      branches: [...SEED_BRANCHES],
       clients: [...SEED_CLIENTS],
       licenseSales: [...SEED_LICENSE_SALES],
       platformIntegrations: { ...SEED_PLATFORM_INTEGRATIONS },
@@ -149,7 +157,19 @@ class DatabaseService {
         const parsed = JSON.parse(fileContent);
         this.filePath = bestPath;
         const defaultData = this.getDefaultData();
-        return { ...defaultData, ...parsed };
+        const merged: DatabaseSchema = { ...defaultData, ...parsed };
+
+        if (!merged.roles || merged.roles.length === 0) {
+          merged.roles = [...SEED_ROLES];
+        }
+        if (!merged.branches || merged.branches.length === 0) {
+          merged.branches = [...SEED_BRANCHES];
+        }
+        if (!merged.users || merged.users.length < 5) {
+          merged.users = [...SEED_USERS];
+        }
+
+        return merged;
       } catch (err) {
         console.warn(`[Database] Failed reading ${bestPath}, initializing default:`, err);
       }

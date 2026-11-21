@@ -37,8 +37,45 @@ export interface User {
   designation?: string;
   isActive: boolean;
   status?: 'active' | 'inactive' | 'pending_approval' | 'blocked';
+  username?: string;
+  firstName?: string;
+  lastName?: string;
+  roleId?: string;
+  roleName?: string;
+  branches?: string[];
+  branchesAccess?: string;
+  apps?: {
+    pos: boolean;
+    mobile: boolean;
+    adminPortal: boolean;
+    inward: boolean;
+  };
+  createdBy?: string;
+  updatedBy?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface RoleRecord {
+  id: string;
+  name: string;
+  description?: string;
+  tenantId?: string;
+  userCount?: number;
+  createdAt: string;
+  updatedAt: string;
+  permissions: Record<string, boolean>;
+}
+
+export interface BranchRecord {
+  id: string;
+  name: string;
+  code: string;
+  group: string;
+  city: string;
+  state?: string;
+  address?: string;
+  isActive: boolean;
 }
 
 export interface ClientCredentials {

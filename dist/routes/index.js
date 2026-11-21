@@ -13,6 +13,9 @@ import webhookRoutes from './webhook.routes.js';
 import festivalRoutes from './festival.routes.js';
 import inventoryRoutes from './inventory.routes.js';
 import emailRoutes from './email.routes.js';
+import userRoutes from './user.routes.js';
+import roleRoutes from './role.routes.js';
+import branchRoutes from './branch.routes.js';
 const apiRouter = Router();
 // Health check endpoint
 apiRouter.get('/health', (_req, res) => {
@@ -27,6 +30,9 @@ apiRouter.get('/health', (_req, res) => {
 // Mounted domain modules
 apiRouter.use('/auth', authRoutes);
 apiRouter.use('/product-admin', productAdminRoutes);
+apiRouter.use('/users', userRoutes);
+apiRouter.use('/roles', roleRoutes);
+apiRouter.use('/branches', branchRoutes);
 apiRouter.use('/items', itemRoutes);
 apiRouter.use('/billing', billingRoutes);
 apiRouter.use('/customers', customerRoutes);

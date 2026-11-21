@@ -3,7 +3,7 @@ import path from 'path';
 import { ENV } from '../config/env.js';
 import { isPostgresActive, getPostgresPool } from './postgres.js';
 import { PostgresSync } from './postgresSync.js';
-import { SEED_USERS, SEED_CLIENTS, SEED_LICENSE_SALES, SEED_PLATFORM_INTEGRATIONS, SEED_SHOP_SETTINGS, SEED_ITEMS, SEED_KITS, SEED_CUSTOMERS, SEED_SUPPLIERS, SEED_PURCHASE_ORDERS, SEED_VENDOR_PAYMENTS, SEED_PURCHASE_RETURNS, SEED_CONTRA_OFFSETS, SEED_BILLS, SEED_SALES_ORDERS, SEED_PACKAGES, SEED_CHALLANS, SEED_CASH_SHIFT, SEED_CASH_EXPENSES, SEED_STOCK_LOGS, SEED_FESTIVALS, } from './initialSeed.js';
+import { SEED_USERS, SEED_ROLES, SEED_BRANCHES, SEED_CLIENTS, SEED_LICENSE_SALES, SEED_PLATFORM_INTEGRATIONS, SEED_SHOP_SETTINGS, SEED_ITEMS, SEED_KITS, SEED_CUSTOMERS, SEED_SUPPLIERS, SEED_PURCHASE_ORDERS, SEED_VENDOR_PAYMENTS, SEED_PURCHASE_RETURNS, SEED_CONTRA_OFFSETS, SEED_BILLS, SEED_SALES_ORDERS, SEED_PACKAGES, SEED_CHALLANS, SEED_CASH_SHIFT, SEED_CASH_EXPENSES, SEED_STOCK_LOGS, SEED_FESTIVALS, } from './initialSeed.js';
 class DatabaseService {
     data;
     filePath;
@@ -25,6 +25,8 @@ class DatabaseService {
     getDefaultData() {
         return {
             users: [...SEED_USERS],
+            roles: [...SEED_ROLES],
+            branches: [...SEED_BRANCHES],
             clients: [...SEED_CLIENTS],
             licenseSales: [...SEED_LICENSE_SALES],
             platformIntegrations: { ...SEED_PLATFORM_INTEGRATIONS },
@@ -73,7 +75,17 @@ class DatabaseService {
                 const parsed = JSON.parse(fileContent);
                 this.filePath = bestPath;
                 const defaultData = this.getDefaultData();
-                return { ...defaultData, ...parsed };
+                const merged = { ...defaultData, ...parsed };
+                if (!merged.roles || merged.roles.length === 0) {
+                    merged.roles = [...SEED_ROLES];
+                }
+                if (!merged.branches || merged.branches.length === 0) {
+                    merged.branches = [...SEED_BRANCHES];
+                }
+                if (!merged.users || merged.users.length < 5) {
+                    merged.users = [...SEED_USERS];
+                }
+                return merged;
             }
             catch (err) {
                 console.warn(`[Database] Failed reading ${bestPath}, initializing default:`, err);

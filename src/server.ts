@@ -11,14 +11,14 @@ const server = app.listen(ENV.PORT, '0.0.0.0', async () => {
   console.log(`🌐 Base URL: http://0.0.0.0:${ENV.PORT}/api/v1`);
   console.log(`🔒 Roles: Product Admin | Store Owner | Counter Staff`);
   console.log(`⚡ Environment: ${ENV.NODE_ENV}`);
-  
+
   // Automatically bootstrap database, run migrations, and seed initial records
   try {
     await autoInitializeDatabase();
   } catch (err: any) {
     console.error('⚠️ [Startup] Database autoInitializeDatabase warning:', err.message);
   }
-  
+
   console.log(`=======================================================`);
 });
 

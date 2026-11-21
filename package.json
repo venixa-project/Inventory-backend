@@ -5,7 +5,7 @@
   "main": "dist/server.js",
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node -e \"import('fs').then(fs => fs.copyFileSync('src/models/schema.sql', 'dist/models/schema.sql'))\"",
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
     "db:migrate": "tsx src/models/migrate.ts",
