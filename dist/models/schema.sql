@@ -99,12 +99,22 @@ CREATE INDEX IF NOT EXISTS idx_client_tenants_tier ON client_tenants(license_tie
 CREATE TABLE IF NOT EXISTS users (
     id VARCHAR(50) PRIMARY KEY,
     name VARCHAR(150) NOT NULL,
+    username VARCHAR(100),
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
     email VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     role user_role_enum NOT NULL,
+    role_id VARCHAR(100) DEFAULT 'role-sales-purchases',
+    role_name VARCHAR(150) DEFAULT 'SALES & PURCHASES',
     tenant_id VARCHAR(50) REFERENCES client_tenants(id) ON DELETE SET NULL, -- NULL for product_admin
     phone VARCHAR(50),
     designation VARCHAR(100),
+    branches JSONB DEFAULT '[]'::jsonb,
+    branches_access VARCHAR(255) DEFAULT 'All Branches',
+    apps JSONB DEFAULT '{"pos":true,"mobile":false,"adminPortal":true,"inward":false}'::jsonb,
+    created_by VARCHAR(150) DEFAULT 'Store Owner',
+    updated_by VARCHAR(150),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -112,6 +122,8 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE INDEX IF NOT EXISTS idx_users_tenant_id ON users(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+CREATE INDEX IF NOT EXISTS idx_users_role_id ON users(role_id);
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 
 -- -----------------------------------------------------------------------------
 -- 3b. ROLES & PERMISSIONS MATRIX (Granular RBAC)
@@ -636,3 +648,30 @@ ALTER TABLE sales_order_lines ALTER COLUMN item_id DROP NOT NULL;
 
 ALTER TABLE purchase_order_lines DROP CONSTRAINT IF EXISTS purchase_order_lines_item_id_fkey;
 ALTER TABLE purchase_order_lines ALTER COLUMN item_id DROP NOT NULL;
+
+-- -----------------------------------------------------------------------------
+-- 20. SEASONAL EVENTS & FESTIVAL DEMAND PLANS
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS festivals (
+    id VARCHAR(100) PRIMARY KEY,
+    tenant_id VARCHAR(50) NOT NULL DEFAULT 'CLI-1001',
+    name VARCHAR(200) NOT NULL,
+    description TEXT,
+    approx_date VARCHAR(50),
+    start_date VARCHAR(50),
+    end_date VARCHAR(50),
+    prep_start_date VARCHAR(50),
+    sales_peak_date VARCHAR(50),
+    historical_compare_year INT DEFAULT 2025,
+    status VARCHAR(50) DEFAULT 'active',
+    suggested_tags TEXT[] DEFAULT '{}',
+    buffer_multiplier NUMERIC(5, 2) DEFAULT 2.0,
+    selected_product_ids TEXT[] DEFAULT '{}',
+    custom_targets JSONB DEFAULT '{}'::jsonb,
+    scenario VARCHAR(50) DEFAULT 'expected',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_festivals_tenant ON festivals(tenant_id);
+

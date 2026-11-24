@@ -8,6 +8,12 @@ const router = Router();
 router.use(authenticateToken);
 router.use(resolveTenant);
 
+// Payment Requests (Internal UPI / QR Billing Settlement)
+router.get('/payment-requests', BillingController.getPaymentRequests);
+router.post('/payment-requests', BillingController.createPaymentRequest);
+router.patch('/payment-requests/:id/pay', BillingController.markPaymentRequestPaid);
+router.patch('/payment-requests/:id/cancel', BillingController.cancelPaymentRequest);
+
 // Billing & Checkout accessible by both store owner and counter staff
 router.get('/', BillingController.getAll);
 router.get('/:id', BillingController.getById);

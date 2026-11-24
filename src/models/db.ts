@@ -27,6 +27,8 @@ import {
   ShopSettings,
   StockLog,
   FestivalPlan,
+  SalesReturn,
+  InternalPaymentRequest,
 } from '../types/index.js';
 import {
   SEED_USERS,
@@ -79,27 +81,16 @@ export interface DatabaseSchema {
   stockLogs: StockLog[];
   festivals: FestivalPlan[];
   bankSettlements: any[];
+  salesReturns: SalesReturn[];
+  paymentRequests: InternalPaymentRequest[];
 }
 
 class DatabaseService {
   private data: DatabaseSchema;
-  private filePath: string;
   private isDirty = false;
 
   constructor() {
-    this.filePath = path.resolve(process.cwd(), ENV.DB_STORAGE_PATH);
-    this.data = this.loadDatabase();
-  }
-
-  private getCandidatePaths(): string[] {
-    const paths = [
-      this.filePath,
-      path.resolve(process.cwd(), 'backend', 'data', 'db.json'),
-      path.resolve(process.cwd(), 'data', 'db.json'),
-      path.resolve(process.cwd(), '..', 'backend', 'data', 'db.json'),
-      path.resolve(process.cwd(), '..', 'data', 'db.json'),
-    ];
-    return Array.from(new Set(paths));
+    this.data = this.getDefaultData();
   }
 
   private getDefaultData(): DatabaseSchema {
@@ -130,76 +121,15 @@ class DatabaseService {
       stockLogs: [...SEED_STOCK_LOGS],
       festivals: [...SEED_FESTIVALS],
       bankSettlements: [],
+      salesReturns: [],
+      paymentRequests: [],
     };
   }
 
-  private loadDatabase(): DatabaseSchema {
-    const candidates = this.getCandidatePaths();
-    // Prefer the candidate file that exists and has the largest data size (e.g. contains stored logos & customizations)
-    let bestPath = '';
-    let bestSize = -1;
-
-    for (const p of candidates) {
-      if (fs.existsSync(p)) {
-        try {
-          const stats = fs.statSync(p);
-          if (stats.size > bestSize) {
-            bestSize = stats.size;
-            bestPath = p;
-          }
-        } catch {}
-      }
-    }
-
-    if (bestPath) {
-      try {
-        const fileContent = fs.readFileSync(bestPath, 'utf-8');
-        const parsed = JSON.parse(fileContent);
-        this.filePath = bestPath;
-        const defaultData = this.getDefaultData();
-        const merged: DatabaseSchema = { ...defaultData, ...parsed };
-
-        if (!merged.roles || merged.roles.length === 0) {
-          merged.roles = [...SEED_ROLES];
-        }
-        if (!merged.branches || merged.branches.length === 0) {
-          merged.branches = [...SEED_BRANCHES];
-        }
-        if (!merged.users || merged.users.length < 5) {
-          merged.users = [...SEED_USERS];
-        }
-
-        return merged;
-      } catch (err) {
-        console.warn(`[Database] Failed reading ${bestPath}, initializing default:`, err);
-      }
-    }
-
-    const initial = this.getDefaultData();
-    this.saveToDisk(initial);
-    return initial;
-  }
-
-  private saveToDisk(dataToSave?: DatabaseSchema) {
-    try {
-      const toWrite = dataToSave || this.data;
-      const candidates = this.getCandidatePaths();
-
-      for (const targetPath of candidates) {
-        try {
-          const dir = path.dirname(targetPath);
-          if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-          }
-          fs.writeFileSync(targetPath, JSON.stringify(toWrite, null, 2), 'utf-8');
-        } catch (err) {
-          console.error(`[Database] Error saving to ${targetPath}:`, err);
-        }
-      }
-      this.isDirty = false;
-    } catch (err) {
-      console.error('[Database] Error saving to disk:', err);
-    }
+  private saveToDisk(_dataToSave?: DatabaseSchema) {
+    // PostgreSQL is the sole, persistent database storage engine.
+    // No mock JSON or disk files are created or maintained.
+    this.isDirty = false;
   }
 
   public persist() {
@@ -227,6 +157,14 @@ class DatabaseService {
         else if (key === 'stockLogs') PostgresSync.syncStockLog(latest);
         else if (key === 'roles') PostgresSync.syncRole(latest);
         else if (key === 'branches') PostgresSync.syncBranch(latest);
+        else if (key === 'users') PostgresSync.syncUser(latest);
+        else if (key === 'customers') PostgresSync.syncCustomer(latest);
+        else if (key === 'suppliers') PostgresSync.syncSupplier(latest);
+        else if (key === 'purchaseOrders') PostgresSync.syncPurchaseOrder(latest);
+        else if (key === 'vendorPayments') PostgresSync.syncVendorPayment(latest);
+        else if (key === 'cashShifts') PostgresSync.syncCashShift(latest);
+        else if (key === 'cashExpenses') PostgresSync.syncCashExpense(latest);
+        else if (key === 'festivals') PostgresSync.syncFestival(latest);
       } else if (key === 'shopSettings' && typeof value === 'object' && value !== null) {
         const tenantIds = Object.keys(value);
         if (tenantIds.length > 0) {
@@ -279,19 +217,29 @@ class DatabaseService {
       }
 
       // 2. Users
-      const usersRes = await pool.query('SELECT * FROM users');
+      const usersRes = await pool.query('SELECT * FROM users ORDER BY created_at ASC');
       if (usersRes.rows.length > 0) {
         this.data.users = usersRes.rows.map((r: any) => ({
           id: r.id,
-          name: r.name,
+          username: r.username || (r.name ? r.name.toLowerCase().replace(/\s+/g, '.') : 'user'),
+          firstName: r.first_name || '',
+          lastName: r.last_name || '',
+          name: r.name || `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.username,
           email: r.email,
-          passwordHash: r.password_hash,
+          phone: r.phone || '',
           role: r.role,
+          roleId: r.role_id || (r.role === 'owner' ? 'role-owner' : 'role-sales-purchases'),
+          roleName: r.role_name || (r.role === 'owner' ? 'Store Owner' : 'SALES & PURCHASES'),
           tenantId: r.tenant_id || undefined,
-          phone: r.phone || undefined,
           designation: r.designation || undefined,
+          passwordHash: r.password_hash,
+          branches: typeof r.branches === 'string' ? JSON.parse(r.branches) : (r.branches || []),
+          branchesAccess: r.branches_access || 'All Branches',
+          apps: typeof r.apps === 'string' ? JSON.parse(r.apps) : (r.apps || { pos: true, mobile: false, adminPortal: true, inward: false }),
           isActive: r.is_active ?? true,
           status: r.is_active ? 'active' : 'inactive',
+          createdBy: r.created_by || 'System',
+          updatedBy: r.updated_by || undefined,
           createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
           updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString(),
         }));
@@ -539,11 +487,7 @@ class DatabaseService {
           updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString(),
         }));
       } else {
-        console.log('🌱 [DatabaseService] Seeding initial roles into PostgreSQL roles table...');
-        for (const sr of SEED_ROLES) {
-          await PostgresSync.syncRole(sr, 'CLI-1001');
-        }
-        this.data.roles = [...SEED_ROLES];
+        this.data.roles = [];
       }
 
       // 12. Branches (Tenant-based Multi-Branch)
@@ -555,22 +499,113 @@ class DatabaseService {
           name: r.name,
           code: r.code || '',
           group: r.group_name || 'General',
-          city: r.city || 'Hyderabad',
-          state: r.state || 'Telangana',
+          city: r.city || '',
+          state: r.state || '',
           address: r.address || '',
           isActive: r.is_active ?? true,
         }));
       } else {
-        console.log('🌱 [DatabaseService] Seeding initial branches into PostgreSQL branches table...');
-        for (const sb of SEED_BRANCHES) {
-          await PostgresSync.syncBranch(sb, 'CLI-1001');
-        }
-        this.data.branches = [...SEED_BRANCHES];
+        this.data.branches = [];
       }
 
-      // Save latest snapshot to disk for offline resilience
-      this.saveToDisk();
-      console.log(`✅ [DatabaseService] Successfully loaded live PostgreSQL data! (${this.data.items.length} items, ${this.data.clients.length} tenants, ${this.data.users.length} users, ${this.data.roles.length} roles)`);
+      // 13. Purchase Orders
+      const poRes = await pool.query('SELECT * FROM purchase_orders ORDER BY created_at DESC');
+      const poLinesRes = await pool.query('SELECT * FROM purchase_order_lines');
+      if (poRes.rows.length > 0) {
+        const linesByPo = new Map<string, any[]>();
+        for (const l of poLinesRes.rows) {
+          if (!linesByPo.has(l.po_id)) linesByPo.set(l.po_id, []);
+          linesByPo.get(l.po_id)!.push({
+            itemId: l.item_id,
+            qty: parseFloat(l.qty) || 1,
+            costPrice: parseFloat(l.cost_price) || 0,
+            totalCost: parseFloat(l.total_cost) || 0,
+          });
+        }
+        this.data.purchaseOrders = poRes.rows.map((r: any) => ({
+          id: r.id,
+          tenantId: r.tenant_id,
+          poNumber: r.po_number,
+          supplierId: r.supplier_id,
+          date: r.date ? new Date(r.date).toISOString().substring(0, 10) : new Date().toISOString().substring(0, 10),
+          receivedDate: r.received_date ? new Date(r.received_date).toISOString().substring(0, 10) : undefined,
+          status: r.status,
+          stockInwarded: r.stock_inwarded ?? false,
+          paymentStatus: r.payment_status || 'Pending',
+          paidAmount: parseFloat(r.paid_amount) || 0,
+          dueAmount: parseFloat(r.due_amount) || 0,
+          paymentMode: r.payment_mode || 'Credit',
+          totalAmount: parseFloat(r.total_amount) || 0,
+          notes: r.notes || undefined,
+          lines: linesByPo.get(r.id) || [],
+          createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+        }));
+      }
+
+      // 14. Vendor Payments
+      const vpRes = await pool.query('SELECT * FROM vendor_payments ORDER BY created_at DESC');
+      if (vpRes.rows.length > 0) {
+        this.data.vendorPayments = vpRes.rows.map((r: any) => ({
+          id: r.id,
+          tenantId: r.tenant_id,
+          paymentNumber: r.payment_number,
+          supplierId: r.supplier_id,
+          supplierName: r.supplier_name,
+          poId: r.po_id || undefined,
+          date: r.date ? new Date(r.date).toISOString().substring(0, 10) : new Date().toISOString().substring(0, 10),
+          amount: parseFloat(r.amount) || 0,
+          paymentMode: r.payment_mode || 'Bank Transfer',
+          referenceNumber: r.reference_number || undefined,
+          note: r.note || undefined,
+          recordedBy: r.recorded_by || 'Store Owner',
+          createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+        }));
+      }
+
+      // 15. Cash Shifts
+      const csRes = await pool.query('SELECT * FROM cash_shifts ORDER BY opened_at DESC');
+      if (csRes.rows.length > 0) {
+        this.data.cashShifts = csRes.rows.map((r: any) => ({
+          id: r.id,
+          tenantId: r.tenant_id,
+          date: r.date ? new Date(r.date).toISOString().substring(0, 10) : new Date().toISOString().substring(0, 10),
+          openedAt: r.opened_at ? new Date(r.opened_at).toISOString() : new Date().toISOString(),
+          closedAt: r.closed_at ? new Date(r.closed_at).toISOString() : undefined,
+          openingCash: parseFloat(r.opening_cash) || 0,
+          cashSales: parseFloat(r.cash_sales) || 0,
+          cashExpenses: parseFloat(r.cash_expenses) || 0,
+          expectedClosingCash: parseFloat(r.expected_closing_cash) || 0,
+          actualClosingCash: r.actual_closing_cash !== null ? parseFloat(r.actual_closing_cash) : undefined,
+          discrepancy: r.discrepancy !== null ? parseFloat(r.discrepancy) : undefined,
+          status: r.status,
+          notes: r.notes || undefined,
+        }));
+      }
+
+      // 16. Festivals & Seasonal Demand Plans
+      const festRes = await pool.query('SELECT * FROM festivals ORDER BY start_date ASC');
+      if (festRes.rows.length > 0) {
+        this.data.festivals = festRes.rows.map((r: any) => ({
+          id: r.id,
+          tenantId: r.tenant_id,
+          name: r.name,
+          description: r.description || '',
+          approxDate: r.approx_date || r.start_date,
+          startDate: r.start_date || '',
+          endDate: r.end_date || '',
+          prepStartDate: r.prep_start_date || '',
+          salesPeakDate: r.sales_peak_date || '',
+          historicalCompareYear: r.historical_compare_year || 2025,
+          status: r.status || 'active',
+          suggestedTags: r.suggested_tags || [],
+          bufferMultiplier: parseFloat(r.buffer_multiplier) || 2.0,
+          selectedProductIds: r.selected_product_ids || [],
+          customTargets: typeof r.custom_targets === 'string' ? JSON.parse(r.custom_targets) : (r.custom_targets || {}),
+          scenario: r.scenario || 'expected',
+        }));
+      }
+
+      console.log(`✅ [DatabaseService] Successfully loaded live PostgreSQL data! (${this.data.items.length} items, ${this.data.bills.length} bills, ${this.data.festivals.length} festivals, ${this.data.clients.length} tenants, ${this.data.users.length} users, ${this.data.roles.length} roles)`);
       return true;
     } catch (err: any) {
       console.warn('⚠️ [DatabaseService] loadFromPostgres failed:', err.message);

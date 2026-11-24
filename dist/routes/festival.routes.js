@@ -9,6 +9,11 @@ router.use(resolveTenant);
 router.get('/', FestivalController.getPlans);
 router.get('/plans', FestivalController.getPlans);
 router.post('/plans', requireRoles('owner', 'staff', 'product_admin'), FestivalController.createPlan);
+router.put('/plans/:id', requireRoles('owner', 'staff', 'product_admin'), FestivalController.updatePlan);
+router.delete('/plans/:id', requireRoles('owner', 'staff', 'product_admin'), FestivalController.deletePlan);
+// Forecast calculation & AI recommendations
 router.get('/forecast/:festivalId', FestivalController.getForecast);
+router.get('/recommendations/:festivalId', FestivalController.getRecommendations);
+// PO generation
 router.post('/generate-po', requireRoles('owner', 'staff', 'product_admin'), FestivalController.generatePO);
 export default router;

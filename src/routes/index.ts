@@ -16,6 +16,7 @@ import emailRoutes from './email.routes.js';
 import userRoutes from './user.routes.js';
 import roleRoutes from './role.routes.js';
 import branchRoutes from './branch.routes.js';
+import salesReturnRoutes from './salesReturn.routes.js';
 
 const apiRouter = Router();
 
@@ -41,6 +42,7 @@ apiRouter.use('/billing', billingRoutes);
 apiRouter.use('/customers', customerRoutes);
 apiRouter.use('/purchases', supplierRoutes);
 apiRouter.use('/sales', salesOrderRoutes);
+apiRouter.use('/sales-returns', salesReturnRoutes);
 apiRouter.use('/cash-register', cashRegisterRoutes);
 apiRouter.use('/shifts', cashRegisterRoutes);
 apiRouter.use('/settings', settingsRoutes);

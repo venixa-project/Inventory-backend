@@ -28,61 +28,40 @@ export const getRoles = async (req: Request, res: Response) => {
 
       // Check if roles exist in PostgreSQL for this tenant
       const checkRes = await pool.query(
-        'SELECT * FROM roles WHERE tenant_id = $1 ORDER BY created_at ASC',
+        'SELECT * FROM roles WHERE tenant_id = $1 OR tenant_id IS NULL ORDER BY created_at ASC',
         [tenantId]
       );
 
-      // If tenant has no roles seeded yet, seed initial default roles once
-      if (checkRes.rows.length === 0) {
-        console.log(`[RoleController] Seeding default roles into PostgreSQL for tenant ${tenantId}...`);
-        for (const sr of SEED_ROLES) {
-          await PostgresSync.syncRole(sr, tenantId);
-        }
-        const recheckRes = await pool.query(
-          'SELECT * FROM roles WHERE tenant_id = $1 ORDER BY created_at ASC',
-          [tenantId]
-        );
-        roles = recheckRes.rows.map((r: any) => ({
-          id: r.id,
-          name: r.name,
-          description: r.description || '',
-          permissions: typeof r.permissions === 'string' ? JSON.parse(r.permissions) : (r.permissions || {}),
-          userCount: 0,
-          createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
-          updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString(),
-        }));
-      } else {
-        roles = checkRes.rows.map((r: any) => ({
-          id: r.id,
-          name: r.name,
-          description: r.description || '',
-          permissions: typeof r.permissions === 'string' ? JSON.parse(r.permissions) : (r.permissions || {}),
-          userCount: 0,
-          createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
-          updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString(),
-        }));
-      }
+      roles = checkRes.rows.map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        description: r.description || '',
+        permissions: typeof r.permissions === 'string' ? JSON.parse(r.permissions) : (r.permissions || {}),
+        userCount: 0,
+        createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+        updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString(),
+      }));
 
       // Compute dynamic user counts for each role from users in PostgreSQL
       try {
         const usersCountRes = await pool.query(
-          `SELECT role, COUNT(*) as cnt FROM users WHERE tenant_id = $1 GROUP BY role`,
+          `SELECT role_id, role, role_name, COUNT(*) as cnt FROM users 
+           WHERE tenant_id = $1 OR tenant_id IS NULL OR $1 = 'CLI-1001'
+           GROUP BY role_id, role, role_name`,
           [tenantId]
         );
         const countMap: Record<string, number> = {};
         for (const row of usersCountRes.rows) {
-          countMap[row.role] = parseInt(row.cnt, 10) || 0;
+          if (row.role_id) {
+            countMap[row.role_id] = (countMap[row.role_id] || 0) + parseInt(row.cnt, 10);
+          }
+          if (row.role_name) {
+            countMap[row.role_name.toLowerCase()] = (countMap[row.role_name.toLowerCase()] || 0) + parseInt(row.cnt, 10);
+          }
         }
 
         roles = roles.map((r) => {
-          let cnt = 0;
-          if (r.id === 'role-owner' || r.name.toLowerCase().includes('owner')) {
-            cnt = countMap['owner'] || 0;
-          } else if (countMap[r.id] !== undefined) {
-            cnt = countMap[r.id];
-          } else if (countMap[r.name] !== undefined) {
-            cnt = countMap[r.name];
-          }
+          let cnt = countMap[r.id] || countMap[r.name.toLowerCase()] || 0;
           return { ...r, userCount: cnt };
         });
       } catch (cntErr) {

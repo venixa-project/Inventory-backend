@@ -80,4 +80,43 @@ export class BillingController {
       next(err);
     }
   }
+
+  public static getPaymentRequests(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const requests = BillingService.getPaymentRequests(req.tenantId!);
+      res.json({ success: true, count: requests.length, data: requests });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public static createPaymentRequest(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const result = BillingService.createPaymentRequest(req.tenantId!, req.body);
+      res.status(201).json({ success: true, message: 'Payment request created', data: result });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public static markPaymentRequestPaid(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const id = req.params.id as string;
+      const { utr } = req.body;
+      const result = BillingService.markPaymentRequestPaid(req.tenantId!, id, utr);
+      res.json({ success: true, message: 'Payment marked as settled', data: result });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public static cancelPaymentRequest(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const id = req.params.id as string;
+      const result = BillingService.cancelPaymentRequest(req.tenantId!, id);
+      res.json({ success: true, message: 'Payment request cancelled', data: result });
+    } catch (err) {
+      next(err);
+    }
+  }
 }

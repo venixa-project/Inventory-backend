@@ -82,62 +82,48 @@ export async function migrateAndSeedToPostgres(targetDatabaseUrl?: string): Prom
     await client.query('COMMIT');
     console.log('✅ All tables, ENUMs, and constraints verified in Railway!');
 
-    // 2. Read live data from db.json (or initialSeed fallback)
-    const dbJsonPath = path.resolve(process.cwd(), './data/db.json');
-    let dbData: any = null;
+    // 2. Load seed definitions for any fresh database installation
+    const {
+      SEED_USERS,
+      SEED_CLIENTS,
+      SEED_LICENSE_SALES,
+      SEED_PLATFORM_INTEGRATIONS,
+      SEED_SHOP_SETTINGS,
+      SEED_ITEMS,
+      SEED_KITS,
+      SEED_CUSTOMERS,
+      SEED_SUPPLIERS,
+      SEED_PURCHASE_ORDERS,
+      SEED_BILLS,
+      SEED_SALES_ORDERS,
+      SEED_PACKAGES,
+      SEED_CHALLANS,
+      SEED_CASH_SHIFT,
+      SEED_CASH_EXPENSES,
+      SEED_STOCK_LOGS,
+      SEED_FESTIVALS,
+    } = await import('./initialSeed.js');
 
-    if (fs.existsSync(dbJsonPath)) {
-      try {
-        dbData = JSON.parse(fs.readFileSync(dbJsonPath, 'utf-8'));
-        console.log('📦 Loaded existing local dataset from ./data/db.json');
-      } catch (e) {
-        console.warn('⚠️ Could not parse ./data/db.json, falling back to initialSeed:', e);
-      }
-    }
-
-    if (!dbData) {
-      const {
-        SEED_USERS,
-        SEED_CLIENTS,
-        SEED_LICENSE_SALES,
-        SEED_PLATFORM_INTEGRATIONS,
-        SEED_SHOP_SETTINGS,
-        SEED_ITEMS,
-        SEED_KITS,
-        SEED_CUSTOMERS,
-        SEED_SUPPLIERS,
-        SEED_PURCHASE_ORDERS,
-        SEED_BILLS,
-        SEED_SALES_ORDERS,
-        SEED_PACKAGES,
-        SEED_CHALLANS,
-        SEED_CASH_SHIFT,
-        SEED_CASH_EXPENSES,
-        SEED_STOCK_LOGS,
-        SEED_FESTIVALS,
-      } = await import('./initialSeed.js');
-
-      dbData = {
-        users: SEED_USERS,
-        clients: SEED_CLIENTS,
-        licenseSales: SEED_LICENSE_SALES,
-        platformIntegrations: SEED_PLATFORM_INTEGRATIONS,
-        shopSettings: { 'CLI-1001': SEED_SHOP_SETTINGS },
-        items: SEED_ITEMS,
-        kits: SEED_KITS,
-        customers: SEED_CUSTOMERS,
-        suppliers: SEED_SUPPLIERS,
-        purchaseOrders: SEED_PURCHASE_ORDERS,
-        bills: SEED_BILLS,
-        salesOrders: SEED_SALES_ORDERS,
-        packages: SEED_PACKAGES,
-        deliveryChallans: SEED_CHALLANS,
-        cashShifts: SEED_CASH_SHIFT ? [SEED_CASH_SHIFT] : [],
-        cashExpenses: SEED_CASH_EXPENSES,
-        stockLogs: SEED_STOCK_LOGS,
-        festivals: SEED_FESTIVALS,
-      };
-    }
+    const dbData: any = {
+      users: SEED_USERS,
+      clients: SEED_CLIENTS,
+      licenseSales: SEED_LICENSE_SALES,
+      platformIntegrations: SEED_PLATFORM_INTEGRATIONS,
+      shopSettings: { 'CLI-1001': SEED_SHOP_SETTINGS },
+      items: SEED_ITEMS,
+      kits: SEED_KITS,
+      customers: SEED_CUSTOMERS,
+      suppliers: SEED_SUPPLIERS,
+      purchaseOrders: SEED_PURCHASE_ORDERS,
+      bills: SEED_BILLS,
+      salesOrders: SEED_SALES_ORDERS,
+      packages: SEED_PACKAGES,
+      deliveryChallans: SEED_CHALLANS,
+      cashShifts: SEED_CASH_SHIFT ? [SEED_CASH_SHIFT] : [],
+      cashExpenses: SEED_CASH_EXPENSES,
+      stockLogs: SEED_STOCK_LOGS,
+      festivals: SEED_FESTIVALS,
+    };
 
     const counts: Record<string, number> = {};
 

@@ -1,7 +1,6 @@
 import { db } from '../models/db.js';
 import { isPostgresActive, getPostgresPool } from '../models/postgres.js';
 import { PostgresSync } from '../models/postgresSync.js';
-import { SEED_BRANCHES } from '../models/initialSeed.js';
 const getTenantId = (req) => {
     return (req.headers['x-tenant-id'] ||
         req.user?.tenantId ||
@@ -14,36 +13,17 @@ export const getBranches = async (req, res) => {
         let result = [];
         if (isPostgresActive()) {
             const pool = getPostgresPool();
-            const bRes = await pool.query('SELECT * FROM branches WHERE tenant_id = $1 ORDER BY created_at ASC', [tenantId]);
-            if (bRes.rows.length === 0) {
-                console.log(`[BranchController] Seeding initial branches into PostgreSQL for tenant ${tenantId}...`);
-                for (const sb of SEED_BRANCHES) {
-                    await PostgresSync.syncBranch(sb, tenantId);
-                }
-                const recheckRes = await pool.query('SELECT * FROM branches WHERE tenant_id = $1 ORDER BY created_at ASC', [tenantId]);
-                result = recheckRes.rows.map((r) => ({
-                    id: r.id,
-                    name: r.name,
-                    code: r.code || '',
-                    group: r.group_name || 'General',
-                    city: r.city || 'Hyderabad',
-                    state: r.state || 'Telangana',
-                    address: r.address || '',
-                    isActive: r.is_active ?? true,
-                }));
-            }
-            else {
-                result = bRes.rows.map((r) => ({
-                    id: r.id,
-                    name: r.name,
-                    code: r.code || '',
-                    group: r.group_name || 'General',
-                    city: r.city || 'Hyderabad',
-                    state: r.state || 'Telangana',
-                    address: r.address || '',
-                    isActive: r.is_active ?? true,
-                }));
-            }
+            const bRes = await pool.query('SELECT * FROM branches WHERE tenant_id = $1 OR tenant_id IS NULL ORDER BY created_at ASC', [tenantId]);
+            result = bRes.rows.map((r) => ({
+                id: r.id,
+                name: r.name,
+                code: r.code || '',
+                group: r.group_name || 'General',
+                city: r.city || '',
+                state: r.state || '',
+                address: r.address || '',
+                isActive: r.is_active ?? true,
+            }));
         }
         else {
             result = db.get('branches') || [];
@@ -80,7 +60,7 @@ export const createBranch = async (req, res) => {
             city: city?.trim() || 'Hyderabad',
             state: state?.trim() || 'Telangana',
             address: address?.trim() || '',
-            isActive: true,
+            isActive: req.body.isActive !== undefined ? Boolean(req.body.isActive) : true,
         };
         if (isPostgresActive()) {
             await PostgresSync.syncBranch(newBranch, tenantId);
@@ -97,5 +77,86 @@ export const createBranch = async (req, res) => {
     catch (error) {
         console.error('Error creating branch:', error);
         res.status(500).json({ success: false, message: 'Failed to create branch' });
+    }
+};
+export const updateBranch = async (req, res) => {
+    try {
+        const tenantId = getTenantId(req);
+        const branchId = req.params.id;
+        const { name, code, group, city, state, address, isActive } = req.body;
+        let existingBranch;
+        const branches = db.get('branches') || [];
+        existingBranch = branches.find((b) => b.id === branchId);
+        if (isPostgresActive()) {
+            const pool = getPostgresPool();
+            const check = await pool.query('SELECT * FROM branches WHERE id = $1 AND (tenant_id = $2 OR tenant_id IS NULL)', [branchId, tenantId]);
+            if (check.rows.length > 0) {
+                const row = check.rows[0];
+                existingBranch = {
+                    id: row.id,
+                    name: row.name,
+                    code: row.code || '',
+                    group: row.group_name || 'General',
+                    city: row.city || 'Hyderabad',
+                    state: row.state || 'Telangana',
+                    address: row.address || '',
+                    isActive: row.is_active ?? true,
+                };
+            }
+        }
+        if (!existingBranch) {
+            return res.status(404).json({ success: false, message: 'Branch not found' });
+        }
+        const updatedBranch = {
+            ...existingBranch,
+            name: name !== undefined ? name.trim() : existingBranch.name,
+            code: code !== undefined ? code.trim() : existingBranch.code,
+            group: group !== undefined ? group.trim() : existingBranch.group,
+            city: city !== undefined ? city.trim() : existingBranch.city,
+            state: state !== undefined ? state.trim() : existingBranch.state,
+            address: address !== undefined ? address.trim() : existingBranch.address,
+            isActive: isActive !== undefined ? Boolean(isActive) : existingBranch.isActive,
+        };
+        if (isPostgresActive()) {
+            await PostgresSync.syncBranch(updatedBranch, tenantId);
+        }
+        const idx = branches.findIndex((b) => b.id === branchId);
+        if (idx !== -1) {
+            branches[idx] = updatedBranch;
+        }
+        else {
+            branches.push(updatedBranch);
+        }
+        db.set('branches', branches);
+        res.json({
+            success: true,
+            message: 'Branch updated successfully',
+            data: updatedBranch,
+        });
+    }
+    catch (error) {
+        console.error('Error updating branch:', error);
+        res.status(500).json({ success: false, message: 'Failed to update branch' });
+    }
+};
+export const deleteBranch = async (req, res) => {
+    try {
+        const tenantId = getTenantId(req);
+        const branchId = req.params.id;
+        if (isPostgresActive()) {
+            await PostgresSync.deleteBranch(branchId, tenantId);
+        }
+        const branches = db.get('branches') || [];
+        const filtered = branches.filter((b) => b.id !== branchId);
+        db.set('branches', filtered);
+        res.json({
+            success: true,
+            message: 'Branch deleted successfully',
+            data: { id: branchId },
+        });
+    }
+    catch (error) {
+        console.error('Error deleting branch:', error);
+        res.status(500).json({ success: false, message: 'Failed to delete branch' });
     }
 };

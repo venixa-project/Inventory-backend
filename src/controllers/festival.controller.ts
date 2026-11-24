@@ -21,11 +21,42 @@ export class FestivalController {
     }
   }
 
+  public static updatePlan(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const plan = FestivalService.updatePlan(req.tenantId!, id as string, req.body);
+      res.json({ success: true, message: 'Seasonal plan updated', data: plan });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public static deletePlan(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      FestivalService.deletePlan(req.tenantId!, id as string);
+      res.json({ success: true, message: 'Seasonal plan deleted' });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   public static getForecast(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const festivalId = req.params.festivalId as string;
-      const forecast = FestivalService.calculateForecast(req.tenantId!, festivalId);
+      const scenario = req.query.scenario as string | undefined;
+      const forecast = FestivalService.calculateForecast(req.tenantId!, festivalId, scenario);
       res.json({ success: true, data: forecast });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public static async getRecommendations(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const festivalId = req.params.festivalId as string;
+      const recs = await FestivalService.getAiRecommendations(req.tenantId!, festivalId);
+      res.json({ success: true, count: recs.length, data: recs });
     } catch (err) {
       next(err);
     }
@@ -33,11 +64,11 @@ export class FestivalController {
 
   public static generatePO(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const po = FestivalService.generatePOFromForecast(req.tenantId!, req.body);
+      const result = FestivalService.generatePOFromForecast(req.tenantId!, req.body);
       res.status(201).json({
         success: true,
-        message: `Draft PO ${po.poNumber} generated successfully for festival rush`,
-        data: po,
+        message: `Draft PO generated successfully with ${result.orderedItemsCount} items`,
+        data: result,
       });
     } catch (err) {
       next(err);

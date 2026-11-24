@@ -78,4 +78,43 @@ export class BillingController {
             next(err);
         }
     }
+    static getPaymentRequests(req, res, next) {
+        try {
+            const requests = BillingService.getPaymentRequests(req.tenantId);
+            res.json({ success: true, count: requests.length, data: requests });
+        }
+        catch (err) {
+            next(err);
+        }
+    }
+    static createPaymentRequest(req, res, next) {
+        try {
+            const result = BillingService.createPaymentRequest(req.tenantId, req.body);
+            res.status(201).json({ success: true, message: 'Payment request created', data: result });
+        }
+        catch (err) {
+            next(err);
+        }
+    }
+    static markPaymentRequestPaid(req, res, next) {
+        try {
+            const id = req.params.id;
+            const { utr } = req.body;
+            const result = BillingService.markPaymentRequestPaid(req.tenantId, id, utr);
+            res.json({ success: true, message: 'Payment marked as settled', data: result });
+        }
+        catch (err) {
+            next(err);
+        }
+    }
+    static cancelPaymentRequest(req, res, next) {
+        try {
+            const id = req.params.id;
+            const result = BillingService.cancelPaymentRequest(req.tenantId, id);
+            res.json({ success: true, message: 'Payment request cancelled', data: result });
+        }
+        catch (err) {
+            next(err);
+        }
+    }
 }

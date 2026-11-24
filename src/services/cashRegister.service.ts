@@ -1,6 +1,7 @@
 import { db } from '../models/db.js';
 import { CashRegisterShift, CashExpense } from '../types/index.js';
 import { AppError } from '../middlewares/error.middleware.js';
+import { PostgresSync } from '../models/postgresSync.js';
 
 export class CashRegisterService {
   public static getCurrentShift(tenantId: string) {
@@ -43,6 +44,7 @@ export class CashRegisterService {
 
     shifts.unshift(newShift);
     db.set('cashShifts', shifts);
+    PostgresSync.syncCashShift(newShift);
     return newShift;
   }
 
@@ -66,6 +68,7 @@ export class CashRegisterService {
 
     expenses.unshift(newExpense);
     db.set('cashExpenses', expenses);
+    PostgresSync.syncCashExpense(newExpense);
 
     // Update active shift if any
     const shifts = db.get('cashShifts');
@@ -102,6 +105,7 @@ export class CashRegisterService {
 
     shifts[activeIndex] = closedShift;
     db.set('cashShifts', shifts);
+    PostgresSync.syncCashShift(closedShift);
     return closedShift;
   }
 }

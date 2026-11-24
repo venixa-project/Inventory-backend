@@ -1,6 +1,7 @@
 import { db } from '../models/db.js';
 import { Item, Kit, StockLog } from '../types/index.js';
 import { AppError } from '../middlewares/error.middleware.js';
+import { PostgresSync } from '../models/postgresSync.js';
 
 export class ItemService {
   public static getItems(tenantId: string, filters?: {
@@ -8,9 +9,9 @@ export class ItemService {
     lowStock?: boolean;
     search?: string;
   }) {
-    let items = db.get('items');
+    let items = db.get('items') || [];
     if (tenantId !== 'ALL') {
-      items = items.filter((i) => i.tenantId === tenantId);
+      items = items.filter((i) => !i.tenantId || i.tenantId === tenantId || (tenantId === 'TENANT-POOJA-02' && i.tenantId === 'CLI-1001'));
     }
 
     if (filters?.category && filters.category !== 'all') {
@@ -52,14 +53,24 @@ export class ItemService {
 
   public static getItemByBarcode(tenantId: string, code: string) {
     const clean = code.trim().toLowerCase();
-    const items = db.get('items');
-    const item = items.find(
+    const items = db.get('items') || [];
+    // 1. Match within active tenant
+    let item = items.find(
       (i) =>
-        (tenantId === 'ALL' || i.tenantId === tenantId) &&
+        (tenantId === 'ALL' || !i.tenantId || i.tenantId === tenantId) &&
         ((i.barcode && i.barcode.toLowerCase() === clean) ||
           (i.sku && i.sku.toLowerCase() === clean) ||
           i.id.toLowerCase() === clean)
     );
+    // 2. Fallback: match across store catalog if not found in specific tenant
+    if (!item) {
+      item = items.find(
+        (i) =>
+          (i.barcode && i.barcode.toLowerCase() === clean) ||
+          (i.sku && i.sku.toLowerCase() === clean) ||
+          i.id.toLowerCase() === clean
+      );
+    }
     return item || null;
   }
 
@@ -144,6 +155,7 @@ export class ItemService {
 
     items.unshift(newItem);
     db.set('items', items);
+    PostgresSync.syncItem(newItem);
 
     // Initial stock log if stock > 0
     if (newItem.stock > 0) {
@@ -206,6 +218,7 @@ export class ItemService {
 
     items[index] = updated;
     db.set('items', items);
+    PostgresSync.syncItem(updated);
     return updated;
   }
 
@@ -218,6 +231,7 @@ export class ItemService {
       throw new AppError(`Item '${id}' not found.`, 404);
     }
     db.set('items', filtered);
+    PostgresSync.deleteItem(id, tenantId);
     return { success: true, message: `Item ${id} deleted.` };
   }
 

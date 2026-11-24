@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticateToken, requireRoles } from '../middlewares/auth.middleware.js';
 import { resolveTenant } from '../middlewares/tenant.middleware.js';
 import { SalesOrderController } from '../controllers/salesOrder.controller.js';
+import { SalesReturnController } from '../controllers/salesReturn.controller.js';
 const router = Router();
 router.use(authenticateToken);
 router.use(resolveTenant);
@@ -28,4 +29,9 @@ router.put('/challans/:id', requireRoles('owner', 'staff', 'product_admin'), Sal
 router.put('/challans/:id/status', requireRoles('owner', 'staff', 'product_admin'), SalesOrderController.updateChallanStatus);
 router.delete('/challans/:id', requireRoles('owner', 'product_admin'), SalesOrderController.deleteChallan);
 router.get('/challans/:id/document', SalesOrderController.printChallan);
+// Sales Returns & Credit Notes
+router.get('/returns', SalesReturnController.getReturns);
+router.get('/returns/:id', SalesReturnController.getReturnById);
+router.post('/returns', requireRoles('owner', 'staff', 'product_admin'), SalesReturnController.createReturn);
+router.delete('/returns/:id', requireRoles('owner', 'product_admin'), SalesReturnController.deleteReturn);
 export default router;

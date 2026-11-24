@@ -2,6 +2,7 @@ import { db } from '../models/db.js';
 import { AppError } from '../middlewares/error.middleware.js';
 import { ItemService } from './item.service.js';
 import { CustomerService } from './customer.service.js';
+import { PostgresSync } from '../models/postgresSync.js';
 export class SupplierService {
     static getSuppliers(tenantId) {
         const suppliers = db.get('suppliers');
@@ -39,6 +40,7 @@ export class SupplierService {
         }
         suppliers.unshift(newSup);
         db.set('suppliers', suppliers);
+        PostgresSync.syncSupplier(newSup);
         return newSup;
     }
     static updateSupplier(tenantId, id, updates) {
@@ -54,6 +56,7 @@ export class SupplierService {
         };
         suppliers[index] = updated;
         db.set('suppliers', suppliers);
+        PostgresSync.syncSupplier(updated);
         return updated;
     }
     // Purchase Orders
@@ -121,6 +124,7 @@ export class SupplierService {
         }
         pos.unshift(newPO);
         db.set('purchaseOrders', pos);
+        PostgresSync.syncPurchaseOrder(newPO);
         return newPO;
     }
     static markPOReceived(tenantId, poId) {
@@ -160,6 +164,7 @@ export class SupplierService {
         };
         payments.unshift(newPayment);
         db.set('vendorPayments', payments);
+        PostgresSync.syncVendorPayment(newPayment);
         if (data.poId) {
             const pos = db.get('purchaseOrders');
             const po = pos.find((p) => (tenantId === 'ALL' || p.tenantId === tenantId) && p.id === data.poId);
@@ -288,6 +293,7 @@ export class SupplierService {
             throw new AppError(`Supplier '${id}' not found.`, 404);
         }
         db.set('suppliers', filtered);
+        PostgresSync.deleteSupplier(id, tenantId);
         return { success: true, message: `Supplier ${id} deleted.` };
     }
     static deletePO(tenantId, id) {

@@ -3,9 +3,10 @@ import jwt from 'jsonwebtoken';
 import { db } from '../models/db.js';
 import { ENV } from '../config/env.js';
 import { AppError } from '../middlewares/error.middleware.js';
+import { isPostgresActive, getPostgresPool } from '../models/postgres.js';
 export class AuthService {
     /**
-     * Direct login using Email or Mobile Number with personal or common master password.
+     * Direct login using Email, Username, or Mobile Number with personal or common master password.
      * Auto-detects user role and validates tenant approval status.
      */
     static async login(identifier, password) {
@@ -14,15 +15,55 @@ export class AuthService {
         }
         const clean = identifier.trim().toLowerCase();
         const cleanDigits = identifier.replace(/\D/g, '');
-        const users = db.get('users');
-        const user = users.find((u) => {
-            const emailMatch = u.email.toLowerCase() === clean;
-            const phoneDigits = (u.phone || '').replace(/\D/g, '');
-            const phoneMatch = cleanDigits.length >= 10 && phoneDigits.endsWith(cleanDigits.slice(-10));
-            return emailMatch || phoneMatch;
-        });
+        let user = null;
+        const users = db.get('users') || [];
+        if (isPostgresActive()) {
+            try {
+                const pool = getPostgresPool();
+                const pgRes = await pool.query(`SELECT * FROM users 
+           WHERE LOWER(email) = $1 
+              OR LOWER(username) = $1 
+              OR REPLACE(phone, ' ', '') = $2
+              OR phone LIKE '%' || $2
+           LIMIT 1`, [clean, cleanDigits.length >= 10 ? cleanDigits.slice(-10) : clean]);
+                if (pgRes.rows.length > 0) {
+                    const r = pgRes.rows[0];
+                    user = {
+                        id: r.id,
+                        username: r.username,
+                        name: r.name || `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.username,
+                        firstName: r.first_name,
+                        lastName: r.last_name,
+                        email: r.email,
+                        phone: r.phone,
+                        role: r.role,
+                        roleId: r.role_id,
+                        roleName: r.role_name,
+                        tenantId: r.tenant_id,
+                        passwordHash: r.password_hash,
+                        branches: typeof r.branches === 'string' ? JSON.parse(r.branches) : (r.branches || []),
+                        branchesAccess: r.branches_access,
+                        apps: typeof r.apps === 'string' ? JSON.parse(r.apps) : (r.apps || {}),
+                        isActive: r.is_active ?? true,
+                        status: r.is_active ? 'active' : 'inactive',
+                    };
+                }
+            }
+            catch (err) {
+                console.warn('[AuthService] Postgres login lookup warning:', err);
+            }
+        }
         if (!user) {
-            throw new AppError('No account found with this email or mobile number.', 401);
+            user = users.find((u) => {
+                const emailMatch = u.email && u.email.toLowerCase() === clean;
+                const usernameMatch = u.username && u.username.toLowerCase() === clean;
+                const phoneDigits = (u.phone || '').replace(/\D/g, '');
+                const phoneMatch = cleanDigits.length >= 10 && phoneDigits.endsWith(cleanDigits.slice(-10));
+                return emailMatch || usernameMatch || phoneMatch;
+            });
+        }
+        if (!user) {
+            throw new AppError('No account found with this email, username, or mobile number.', 401);
         }
         // Common master passwords supported for seamless demo/testing + user's own password
         const COMMON_MASTER_PASSWORDS = ['Venixa@123', 'Admin@1234', 'Owner@1234', 'Staff@1234', '123456'];
@@ -53,6 +94,8 @@ export class AuthService {
             id: user.id,
             email: user.email,
             role: user.role,
+            roleId: user.roleId || user.role_id,
+            roleName: user.roleName || user.role_name,
             tenantId: user.tenantId,
             name: user.name,
         }, ENV.JWT_SECRET);
@@ -62,8 +105,11 @@ export class AuthService {
             user: {
                 id: user.id,
                 name: user.name,
+                username: user.username || (user.email ? user.email.split('@')[0] : 'user'),
                 email: user.email,
                 role: user.role,
+                roleId: user.roleId || user.role_id,
+                roleName: user.roleName || user.role_name || (user.role === 'owner' ? 'Store Owner' : 'Staff'),
                 roles: availableRoles,
                 tenantId: user.tenantId,
                 phone: user.phone,
@@ -308,8 +354,42 @@ export class AuthService {
         return { success: true, message: `Staff member '${removed[0].name}' removed successfully.` };
     }
     static async getProfile(userId) {
-        const users = db.get('users');
-        const user = users.find((u) => u.id === userId);
+        let user = null;
+        const users = db.get('users') || [];
+        if (isPostgresActive()) {
+            try {
+                const pool = getPostgresPool();
+                const pgRes = await pool.query(`SELECT * FROM users WHERE id = $1 LIMIT 1`, [userId]);
+                if (pgRes.rows.length > 0) {
+                    const r = pgRes.rows[0];
+                    user = {
+                        id: r.id,
+                        username: r.username,
+                        name: r.name || `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.username,
+                        firstName: r.first_name,
+                        lastName: r.last_name,
+                        email: r.email,
+                        phone: r.phone,
+                        role: r.role,
+                        roleId: r.role_id,
+                        roleName: r.role_name,
+                        tenantId: r.tenant_id,
+                        passwordHash: r.password_hash,
+                        branches: typeof r.branches === 'string' ? JSON.parse(r.branches) : (r.branches || []),
+                        branchesAccess: r.branches_access,
+                        apps: typeof r.apps === 'string' ? JSON.parse(r.apps) : (r.apps || {}),
+                        isActive: r.is_active ?? true,
+                        status: r.is_active ? 'active' : 'inactive',
+                    };
+                }
+            }
+            catch (err) {
+                console.warn('[AuthService] Postgres getProfile lookup warning:', err);
+            }
+        }
+        if (!user) {
+            user = users.find((u) => u.id === userId);
+        }
         if (!user) {
             throw new AppError('User profile not found.', 404);
         }
@@ -321,8 +401,11 @@ export class AuthService {
         return {
             id: user.id,
             name: user.name,
+            username: user.username || (user.email ? user.email.split('@')[0] : 'user'),
             email: user.email,
             role: user.role,
+            roleId: user.roleId || user.role_id,
+            roleName: user.roleName || user.role_name || (user.role === 'owner' ? 'Store Owner' : 'Staff'),
             roles: availableRoles,
             tenantId: user.tenantId,
             phone: user.phone,

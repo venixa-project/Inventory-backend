@@ -18,11 +18,42 @@ export class FestivalController {
             next(err);
         }
     }
+    static updatePlan(req, res, next) {
+        try {
+            const { id } = req.params;
+            const plan = FestivalService.updatePlan(req.tenantId, id, req.body);
+            res.json({ success: true, message: 'Seasonal plan updated', data: plan });
+        }
+        catch (err) {
+            next(err);
+        }
+    }
+    static deletePlan(req, res, next) {
+        try {
+            const { id } = req.params;
+            FestivalService.deletePlan(req.tenantId, id);
+            res.json({ success: true, message: 'Seasonal plan deleted' });
+        }
+        catch (err) {
+            next(err);
+        }
+    }
     static getForecast(req, res, next) {
         try {
             const festivalId = req.params.festivalId;
-            const forecast = FestivalService.calculateForecast(req.tenantId, festivalId);
+            const scenario = req.query.scenario;
+            const forecast = FestivalService.calculateForecast(req.tenantId, festivalId, scenario);
             res.json({ success: true, data: forecast });
+        }
+        catch (err) {
+            next(err);
+        }
+    }
+    static async getRecommendations(req, res, next) {
+        try {
+            const festivalId = req.params.festivalId;
+            const recs = await FestivalService.getAiRecommendations(req.tenantId, festivalId);
+            res.json({ success: true, count: recs.length, data: recs });
         }
         catch (err) {
             next(err);
@@ -30,11 +61,11 @@ export class FestivalController {
     }
     static generatePO(req, res, next) {
         try {
-            const po = FestivalService.generatePOFromForecast(req.tenantId, req.body);
+            const result = FestivalService.generatePOFromForecast(req.tenantId, req.body);
             res.status(201).json({
                 success: true,
-                message: `Draft PO ${po.poNumber} generated successfully for festival rush`,
-                data: po,
+                message: `Draft PO generated successfully with ${result.orderedItemsCount} items`,
+                data: result,
             });
         }
         catch (err) {

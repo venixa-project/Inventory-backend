@@ -1,6 +1,12 @@
 export type UserRole = 'product_admin' | 'owner' | 'staff';
 
-export type BusinessType = 'pooja' | 'pharmacy' | 'grocery' | 'hardware' | 'retail_general';
+export type BusinessType =
+  | 'pooja'
+  | 'pharmacy'
+  | 'grocery'
+  | 'hardware'
+  | 'apparel'
+  | 'retail_general';
 
 export type UnitType =
   | 'pc'
@@ -662,18 +668,77 @@ export interface ShopSettings {
   enableSoundEffects: boolean;
   currencySymbol?: string;
   country?: string;
+  hasSelectedDomain?: boolean;
 }
 
 export interface FestivalPlan {
   id: string;
   tenantId?: string;
   name: string;
+  description?: string;
   nameHi?: string;
   nameTe?: string;
-  approxDate: string;
+  approxDate?: string;
   panchangNote?: string;
-  suggestedTags: string[];
+  suggestedTags?: string[];
+  startDate?: string;
+  endDate?: string;
+  prepStartDate?: string;
+  salesPeakDate?: string;
+  historicalCompareYear?: number;
+  status?: 'draft' | 'active' | 'completed' | 'archived';
+  warehouseId?: string;
+  region?: string;
+  selectedProductIds?: string[];
   bufferMultiplier?: number;
+  customTargets?: Record<string, number>;
+  scenario?: 'conservative' | 'expected' | 'optimistic';
+}
+
+export interface SeasonalForecastItem {
+  itemId: string;
+  name: string;
+  sku: string;
+  category: string;
+  image?: string;
+  previousFestivalSales: number;
+  recent30DaySales: number;
+  forecastedUnits: number;
+  lowerBoundUnits: number;
+  upperBoundUnits: number;
+  currentStock: number;
+  incomingStock: number;
+  safetyStock: number;
+  suggestedPurchaseQty: number;
+  costPrice: number;
+  sellingPrice: number;
+  expectedRevenue: number;
+  expectedGrossProfit: number;
+  forecastConfidence: number;
+  supplierName: string;
+  leadTimeDays: number;
+  recommendedOrderDate: string;
+  demandGrowthPercent: number;
+}
+
+export interface DemandDriverBreakdown {
+  driverName: string;
+  impactDirection: 'positive' | 'negative' | 'neutral';
+  percentageContribution: number;
+  metricLabel: string;
+  explanation: string;
+}
+
+export interface AiStrategicRecommendation {
+  id: string;
+  category: 'merchandising' | 'pricing' | 'bundling' | 'procurement' | 'outreach';
+  title: string;
+  metricHighlight?: string;
+  description: string;
+  impactLevel: 'High' | 'Medium' | 'Critical';
+  targetProducts: string[];
+  actionLabel?: string;
+  actionPayload?: any;
 }
 
 export interface ApiResponse<T = any> {
@@ -683,3 +748,96 @@ export interface ApiResponse<T = any> {
   error?: string;
   meta?: Record<string, any>;
 }
+
+// -------------------------------------------------------------
+// Sales Returns & Credit Notes
+// -------------------------------------------------------------
+export type ItemCondition = 'resaleable' | 'damaged';
+
+export type SalesReturnReason =
+  | 'Defective/Damaged'
+  | 'Wrong Item Sent'
+  | 'Customer Changed Mind'
+  | 'Expired/Nearing Expiry'
+  | 'Quality Not as Expected'
+  | 'Other';
+
+export type SalesReturnRefundMode =
+  | 'Cash'
+  | 'Khata Adjustment'
+  | 'Store Credit'
+  | 'UPI'
+  | 'Bank Transfer';
+
+export interface SalesReturnLine {
+  id?: string;
+  itemId: string;
+  itemName: string;
+  qty: number;
+  unit: string;
+  unitPrice: number;
+  gstPercent: number;
+  totalAmount: number;
+  condition: ItemCondition;
+  reason: SalesReturnReason;
+  batchNumber?: string;
+}
+
+export interface SalesReturn {
+  id: string;
+  tenantId?: string;
+  returnNumber: string;
+  billId?: string;
+  billNumber?: string;
+  salesOrderId?: string;
+  salesOrderNumber?: string;
+  customerId?: string;
+  customerName: string;
+  customerPhone?: string;
+  date: string;
+  lines: SalesReturnLine[];
+  subtotal: number;
+  gst: number;
+  totalAmount: number;
+  refundMode: SalesReturnRefundMode;
+  refundStatus: 'Completed' | 'Pending' | 'Store Credit Active';
+  status: 'Completed' | 'Draft' | 'Approved' | 'Void';
+  storeCreditVoucherCode?: string;
+  notes?: string;
+  processedBy?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+// -------------------------------------------------------------
+// Payment Requests (Internal UPI / QR Billing Settlement)
+// -------------------------------------------------------------
+export interface PaymentRequestItem {
+  name: string;
+  qty: number;
+  price: number;
+  total: number;
+}
+
+export interface InternalPaymentRequest {
+  id: string;
+  tenantId?: string;
+  orderNumber: string;
+  amount: number;
+  userId: string;
+  userName: string;
+  userPhone?: string;
+  userEmail?: string;
+  userRole?: 'Customer' | 'Vendor' | 'Staff';
+  senderName: string;
+  vpa: string;
+  payeeName: string;
+  createdAt: string;
+  status: 'Pending' | 'Paid' | 'Cancelled';
+  paidAt?: string;
+  utr?: string;
+  items?: PaymentRequestItem[];
+  subtotal?: number;
+  tax?: number;
+}
+

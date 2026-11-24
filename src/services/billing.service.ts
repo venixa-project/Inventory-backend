@@ -380,4 +380,92 @@ export class BillingService {
 
     return settlementEntry;
   }
+
+  /**
+   * Get all internal payment requests for tenant
+   */
+  public static getPaymentRequests(tenantId: string) {
+    const requests = db.get('paymentRequests') || [];
+    return requests
+      .filter((r: any) => tenantId === 'ALL' || !r.tenantId || r.tenantId === tenantId)
+      .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  /**
+   * Create an internal payment request
+   */
+  public static createPaymentRequest(tenantId: string, data: any) {
+    const requests = db.get('paymentRequests') || [];
+    const id = data.id || `PR-${Date.now().toString().slice(-4)}`;
+    const newReq = {
+      id,
+      tenantId,
+      orderNumber: data.orderNumber,
+      amount: Number(data.amount || 0),
+      userId: data.userId || 'cust-1',
+      userName: data.userName || 'Walk-in Customer',
+      userPhone: data.userPhone,
+      userEmail: data.userEmail,
+      userRole: data.userRole || 'Customer',
+      senderName: data.senderName || 'Store Billing Desk',
+      vpa: data.vpa || 'store@upi',
+      payeeName: data.payeeName || 'Store Owner',
+      createdAt: new Date().toISOString(),
+      status: 'Pending' as const,
+      items: data.items || [],
+      subtotal: Number(data.subtotal || data.amount || 0),
+      tax: Number(data.tax || 0),
+    };
+
+    requests.unshift(newReq);
+    db.set('paymentRequests', requests);
+    return newReq;
+  }
+
+  /**
+   * Mark payment request as paid with UTR
+   */
+  public static markPaymentRequestPaid(tenantId: string, id: string, utr: string) {
+    const requests = db.get('paymentRequests') || [];
+    const req = requests.find(
+      (r: any) => (tenantId === 'ALL' || !r.tenantId || r.tenantId === tenantId) && (r.id === id || r.orderNumber === id)
+    );
+    if (!req) {
+      throw new AppError(`Payment request '${id}' not found.`, 404);
+    }
+
+    req.status = 'Paid';
+    req.paidAt = new Date().toISOString();
+    req.utr = utr;
+    db.set('paymentRequests', requests);
+
+    // Auto record settlement
+    try {
+      this.recordUpiSettlement(tenantId, {
+        orderNumber: req.orderNumber,
+        utr,
+        amount: req.amount,
+        vpa: req.vpa,
+      });
+    } catch {}
+
+    return req;
+  }
+
+  /**
+   * Cancel payment request
+   */
+  public static cancelPaymentRequest(tenantId: string, id: string) {
+    const requests = db.get('paymentRequests') || [];
+    const req = requests.find(
+      (r: any) => (tenantId === 'ALL' || !r.tenantId || r.tenantId === tenantId) && (r.id === id || r.orderNumber === id)
+    );
+    if (!req) {
+      throw new AppError(`Payment request '${id}' not found.`, 404);
+    }
+
+    req.status = 'Cancelled';
+    db.set('paymentRequests', requests);
+    return req;
+  }
 }

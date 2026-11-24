@@ -9,6 +9,7 @@ import {
 import { AppError } from '../middlewares/error.middleware.js';
 import { ItemService } from './item.service.js';
 import { CustomerService } from './customer.service.js';
+import { PostgresSync } from '../models/postgresSync.js';
 
 export class SupplierService {
   public static getSuppliers(tenantId: string) {
@@ -55,6 +56,7 @@ export class SupplierService {
 
     suppliers.unshift(newSup);
     db.set('suppliers', suppliers);
+    PostgresSync.syncSupplier(newSup);
     return newSup;
   }
 
@@ -75,6 +77,7 @@ export class SupplierService {
 
     suppliers[index] = updated;
     db.set('suppliers', suppliers);
+    PostgresSync.syncSupplier(updated);
     return updated;
   }
 
@@ -181,6 +184,7 @@ export class SupplierService {
 
     pos.unshift(newPO);
     db.set('purchaseOrders', pos);
+    PostgresSync.syncPurchaseOrder(newPO);
     return newPO;
   }
 
@@ -241,6 +245,7 @@ export class SupplierService {
 
     payments.unshift(newPayment);
     db.set('vendorPayments', payments);
+    PostgresSync.syncVendorPayment(newPayment);
 
     if (data.poId) {
       const pos = db.get('purchaseOrders');
@@ -416,6 +421,7 @@ export class SupplierService {
       throw new AppError(`Supplier '${id}' not found.`, 404);
     }
     db.set('suppliers', filtered);
+    PostgresSync.deleteSupplier(id, tenantId);
     return { success: true, message: `Supplier ${id} deleted.` };
   }
 

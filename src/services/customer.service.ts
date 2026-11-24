@@ -1,6 +1,7 @@
 import { db } from '../models/db.js';
 import { Customer } from '../types/index.js';
 import { AppError } from '../middlewares/error.middleware.js';
+import { PostgresSync } from '../models/postgresSync.js';
 
 export class CustomerService {
   public static getCustomers(
@@ -73,6 +74,7 @@ export class CustomerService {
 
     customers.unshift(newCustomer);
     db.set('customers', customers);
+    PostgresSync.syncCustomer(newCustomer);
     return newCustomer;
   }
 
@@ -93,6 +95,7 @@ export class CustomerService {
 
     customers[index] = updated;
     db.set('customers', customers);
+    PostgresSync.syncCustomer(updated);
     return updated;
   }
 
@@ -173,6 +176,7 @@ export class CustomerService {
       throw new AppError(`Customer with ID '${id}' not found.`, 404);
     }
     db.set('customers', filtered);
+    PostgresSync.deleteCustomer(id, tenantId);
     return { success: true, message: `Customer ${id} deleted.` };
   }
 }
