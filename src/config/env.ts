@@ -14,7 +14,7 @@ export const ENV = {
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || 'never',
   CORS_ORIGIN: process.env.CORS_ORIGIN || 'http://localhost:5173',
   DATABASE_URL: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/venixa_inventory',
-  ENABLE_POSTGRES: process.env.ENABLE_POSTGRES === 'true',
+  ENABLE_POSTGRES: process.env.ENABLE_POSTGRES !== undefined ? process.env.ENABLE_POSTGRES === 'true' : Boolean(process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('localhost')),
   REDIS_URL: process.env.REDIS_URL || 'redis://localhost:6379',
   WEBHOOK_SECRET: process.env.WEBHOOK_SECRET || 'rzp_test_secret_key_venixa_2026',
   GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',

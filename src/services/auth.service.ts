@@ -56,6 +56,35 @@ export class AuthService {
             status: r.is_active ? 'active' : 'inactive',
           };
         }
+
+        // If not found in users table, check client_tenants table for registered store owner
+        if (!user) {
+          const clientRes = await pool.query(
+            `SELECT * FROM client_tenants 
+             WHERE LOWER(email) = $1 
+                OR LOWER(username) = $1 
+                OR REPLACE(phone, ' ', '') = $2
+                OR phone LIKE '%' || $2
+             LIMIT 1`,
+            [clean, cleanDigits.length >= 10 ? cleanDigits.slice(-10) : clean]
+          );
+          if (clientRes.rows.length > 0) {
+            const c = clientRes.rows[0];
+            user = {
+              id: `usr-${c.id}`,
+              username: c.username || c.email,
+              name: c.owner_name || c.business_name || 'Store Owner',
+              email: c.email,
+              phone: c.phone,
+              role: 'owner',
+              roleName: 'Store Owner',
+              tenantId: c.id,
+              passwordHash: c.temporary_password ? await bcrypt.hash(c.temporary_password, 10) : '$2a$10$f6F1j3h08qJ604r71m317.T4x1N/w5B4tGkXJp04R2x06y1e4Q.aG',
+              isActive: c.status === 'active',
+              status: c.status || 'active',
+            };
+          }
+        }
       } catch (err) {
         console.warn('[AuthService] Postgres login lookup warning:', err);
       }
@@ -69,6 +98,33 @@ export class AuthService {
         const phoneMatch = cleanDigits.length >= 10 && phoneDigits.endsWith(cleanDigits.slice(-10));
         return emailMatch || usernameMatch || phoneMatch;
       });
+    }
+
+    // Fallback: check in-memory client tenants
+    if (!user) {
+      const clients = db.get('clients') || [];
+      const clientMatch = clients.find((c) => {
+        const emailMatch = c.email && c.email.toLowerCase() === clean;
+        const usernameMatch = (c as any).username && (c as any).username.toLowerCase() === clean;
+        const phoneDigits = (c.phone || '').replace(/\D/g, '');
+        const phoneMatch = cleanDigits.length >= 10 && phoneDigits.endsWith(cleanDigits.slice(-10));
+        return emailMatch || usernameMatch || phoneMatch;
+      });
+      if (clientMatch) {
+        user = {
+          id: `usr-${clientMatch.id}`,
+          username: (clientMatch as any).username || clientMatch.email,
+          name: clientMatch.ownerName || clientMatch.businessName || 'Store Owner',
+          email: clientMatch.email,
+          phone: clientMatch.phone,
+          role: 'owner',
+          roleName: 'Store Owner',
+          tenantId: clientMatch.id,
+          passwordHash: '$2a$10$f6F1j3h08qJ604r71m317.T4x1N/w5B4tGkXJp04R2x06y1e4Q.aG',
+          isActive: clientMatch.status === 'active',
+          status: clientMatch.status || 'active',
+        };
+      }
     }
 
     if (!user) {
