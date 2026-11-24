@@ -214,6 +214,7 @@ class DatabaseService {
                         upiId: r.upi_id || 'store@upi',
                         gstin: r.gstin || '',
                         businessType: tenantClient?.businessType || 'pooja',
+                        hasSelectedDomain: true,
                         role: r.role || 'owner',
                         theme: r.theme || 'light',
                         receiptType: r.receipt_type || '80mm',

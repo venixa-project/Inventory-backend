@@ -14,6 +14,7 @@ export class SettingsService {
         ...(client?.phone ? { phone: client.phone } : {}),
         ...(client?.email ? { userEmail: client.email } : {}),
         ...(client?.businessType ? { businessType: client.businessType } : {}),
+        hasSelectedDomain: true,
       };
       db.set('shopSettings', allSettings);
     }
@@ -46,6 +47,7 @@ export class SettingsService {
       ...current,
       ...sanitizedUpdates,
       tenantId,
+      hasSelectedDomain: updates.hasSelectedDomain !== undefined ? updates.hasSelectedDomain : true,
     };
     allSettings[tenantId] = updated;
     db.set('shopSettings', allSettings);
